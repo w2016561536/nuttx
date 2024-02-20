@@ -40,11 +40,11 @@
 #ifndef __ASSEMBLY__
 
 #ifdef CONFIG_ESP32S3_I2C0
-#  define ESP32S3_I2C0 0
+#  define ESP32S3_I2C0 1
 #endif
 
 #ifdef CONFIG_ESP32S3_I2C1
-#  define ESP32S3_I2C1 1
+#  define ESP32S3_I2C1 2
 #endif
 
 /****************************************************************************

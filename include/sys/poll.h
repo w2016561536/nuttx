@@ -127,6 +127,8 @@ struct pollfd
   FAR void    *arg;     /* The poll callback function argument */
   pollcb_t     cb;      /* The poll callback function */
   FAR void    *priv;    /* For use by drivers */
+
+  sem_t   *sem;  	/* Pointer to semaphore used to post output event */
 };
 
 /****************************************************************************
