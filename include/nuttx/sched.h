@@ -45,6 +45,7 @@
 #include <nuttx/fs/fs.h>
 #include <nuttx/net/net.h>
 #include <nuttx/mm/map.h>
+#include <nuttx/tls.h>
 
 #include <arch/arch.h>
 
@@ -103,6 +104,7 @@
 #define TCB_FLAG_HEAP_DUMP         (1 << 11)                     /* Bit 11: Heap dump */
 #define TCB_FLAG_DETACHED          (1 << 12)                     /* Bit 12: Pthread detached */
 #define TCB_FLAG_FORCED_CANCEL     (1 << 13)                     /* Bit 13: Pthread cancel is forced */
+#define TCB_FLAG_FREE_TCB          (1 << 14)                     /* Bit 14: Free tcb after exit */
 
 /* Values for struct task_group tg_flags */
 
@@ -224,7 +226,7 @@ enum tstate_e
   TSTATE_WAIT_MQNOTEMPTY,     /* BLOCKED      - Waiting for a MQ to become not empty. */
   TSTATE_WAIT_MQNOTFULL,      /* BLOCKED      - Waiting for a MQ to become not full. */
 #endif
-#ifdef CONFIG_PAGING
+#ifdef CONFIG_LEGACY_PAGING
   TSTATE_WAIT_PAGEFILL,       /* BLOCKED      - Waiting for page fill */
 #endif
 #ifdef CONFIG_SIG_SIGSTOP_ACTION
@@ -401,8 +403,6 @@ struct stackinfo_s
  * the struct task_group_s is free.
  */
 
-struct task_info_s;
-
 #ifndef CONFIG_DISABLE_PTHREAD
 struct join_s;                      /* Forward reference                        */
                                     /* Defined in sched/pthread/pthread.h       */
@@ -414,9 +414,6 @@ struct binary_s;                    /* Forward reference                        
 
 struct task_group_s
 {
-#if defined(HAVE_GROUP_MEMBERS)
-  struct task_group_s *flink;       /* Supports a singly linked list            */
-#endif
   pid_t tg_pid;                     /* The ID of the task within the group      */
   pid_t tg_ppid;                    /* This is the ID of the parent thread      */
   uint8_t tg_flags;                 /* See GROUP_FLAG_* definitions             */
@@ -480,6 +477,9 @@ struct task_group_s
 
   /* Thread local storage ***************************************************/
 
+#ifndef CONFIG_MM_KERNEL_HEAP
+  struct task_info_s tg_info_;
+#endif
   FAR struct task_info_s *tg_info;
 
   /* POSIX Signal Control Fields ********************************************/
@@ -621,7 +621,7 @@ struct tcb_s
   /* CPU load monitoring support ********************************************/
 
 #ifndef CONFIG_SCHED_CPULOAD_NONE
-  uint32_t ticks;                        /* Number of ticks on this thread */
+  clock_t ticks;                         /* Number of ticks on this thread */
 #endif
 
   /* Pre-emption monitor support ********************************************/

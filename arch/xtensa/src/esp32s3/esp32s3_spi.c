@@ -223,9 +223,9 @@ static void esp32s3_spi_recvblock(struct spi_dev_s *dev,
 static int esp32s3_spi_trigger(struct spi_dev_s *dev);
 #endif
 #ifdef CONFIG_ESP32S3_SPI_DMA
-static void esp32s3_spi_dma_init(struct spi_dev_s *dev);
+static int esp32s3_spi_dma_init(struct spi_dev_s *dev);
 #endif
-static void esp32s3_spi_init(struct spi_dev_s *dev);
+static int esp32s3_spi_init(struct spi_dev_s *dev);
 static void esp32s3_spi_deinit(struct spi_dev_s *dev);
 
 /****************************************************************************
@@ -1335,11 +1335,11 @@ static int esp32s3_spi_trigger(struct spi_dev_s *dev)
  *   dev - Device-specific state data
  *
  * Returned Value:
- *   None.
+ *   OK on success; A negated errno value on failure.
  *
  ****************************************************************************/
 
-void esp32s3_spi_dma_init(struct spi_dev_s *dev)
+static int esp32s3_spi_dma_init(struct spi_dev_s *dev)
 {
   struct esp32s3_spi_priv_s *priv = (struct esp32s3_spi_priv_s *)dev;
 
@@ -1363,13 +1363,16 @@ void esp32s3_spi_dma_init(struct spi_dev_s *dev)
     {
       spierr("Failed to allocate GDMA channel\n");
 
-      DEBUGPANIC();
+      esp32s3_dma_deinit();
+      return ERROR;
     }
 
   /* Disable segment transaction mode for SPI Master */
 
   putreg32((SPI_SLV_RX_SEG_TRANS_CLR_EN_M | SPI_SLV_TX_SEG_TRANS_CLR_EN_M),
            SPI_DMA_CONF_REG(priv->config->id));
+
+  return OK;
 }
 
 /****************************************************************************
@@ -1414,11 +1417,11 @@ void esp32s3_spi_dma_deinit(struct spi_dev_s *dev)
  *   dev - Device-specific state data
  *
  * Returned Value:
- *   None.
+ *   OK on success; A negated errno value on failure.
  *
  ****************************************************************************/
 
-static void esp32s3_spi_init(struct spi_dev_s *dev)
+static int esp32s3_spi_init(struct spi_dev_s *dev)
 {
   struct esp32s3_spi_priv_s *priv = (struct esp32s3_spi_priv_s *)dev;
   const struct esp32s3_spi_config_s *config = priv->config;
@@ -1489,12 +1492,19 @@ static void esp32s3_spi_init(struct spi_dev_s *dev)
            SPI_USER1_REG(priv->config->id));
 
 #ifdef CONFIG_ESP32S3_SPI_DMA
-  esp32s3_spi_dma_init(dev);
+  if (esp32s3_spi_dma_init(dev) != OK)
+    {
+      modifyreg32(SYSTEM_PERIP_RST_EN0_REG, 0, priv->config->clk_bit);
+      modifyreg32(SYSTEM_PERIP_CLK_EN0_REG, priv->config->clk_bit, 0);
+      return ERROR;
+    }
 #endif
 
   esp32s3_spi_setfrequency(dev, config->clk_freq);
   esp32s3_spi_setbits(dev, config->width);
   esp32s3_spi_setmode(dev, config->mode);
+
+  return OK;
 }
 
 /****************************************************************************
@@ -1651,7 +1661,18 @@ struct spi_dev_s *esp32s3_spibus_initialize(int port)
   up_enable_irq(priv->config->irq);
 #endif
 
-  esp32s3_spi_init(spi_dev);
+  if (esp32s3_spi_init(spi_dev) != OK)
+    {
+#ifdef CONFIG_ESP32S3_SPI_DMA
+      up_disable_irq(priv->config->irq);
+      esp32s3_teardown_irq(priv->cpu, priv->config->periph, priv->cpuint);
+      irq_detach(priv->config->irq);
+      priv->cpuint = -ENOMEM;
+#endif
+      nxmutex_unlock(&priv->lock);
+      return NULL;
+    }
+
   priv->refs++;
 
   nxmutex_unlock(&priv->lock);
