@@ -620,7 +620,13 @@ static uint32_t esp32s3_spi_setfrequency(struct spi_dev_s *dev,
   struct esp32s3_spi_priv_s *priv = (struct esp32s3_spi_priv_s *)dev;
   const uint32_t duty_cycle = 128;
 
-  frequency = 20000000;
+    if (priv->config->id == 2){
+    frequency = 20000000;
+
+  }else if (priv->config->id == 3){
+    frequency = 40000000;
+  }
+
 
   if (priv->frequency == frequency)
     {
