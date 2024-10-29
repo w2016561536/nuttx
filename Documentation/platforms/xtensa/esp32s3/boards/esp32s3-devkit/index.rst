@@ -531,7 +531,7 @@ https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-guides/bootloade
 
 3. Write the NuttX binary and the filesystem image to the board::
 
-      % esptool.py \
+      % esptool \
         -c esp32s3 \
         -p /dev/tty.SLAB_USBtoUART \
         -b 921600 \

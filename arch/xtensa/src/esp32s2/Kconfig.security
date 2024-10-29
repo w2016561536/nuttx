@@ -238,7 +238,7 @@ choice ESP32S2_SECURE_UART_ROM_DL_MODE
 		bool "Permanently disabled (recommended)"
 		---help---
 			If set, during startup the app will burn an eFuse bit to permanently disable the UART ROM
-			Download Mode. This prevents any future use of esptool.py, espefuse.py and similar tools.
+			Download Mode. This prevents any future use of esptool, espefuse.py and similar tools.
 
 			Once disabled, if the SoC is booted with strapping pins set for ROM Download Mode
 			then an error is printed instead.
@@ -261,7 +261,7 @@ choice ESP32S2_SECURE_UART_ROM_DL_MODE
 			write and erase operations, plus a command to return a summary of currently enabled
 			security features.
 
-			Secure Download mode is not compatible with the esptool.py flasher stub feature,
+			Secure Download mode is not compatible with the esptool flasher stub feature,
 			espefuse.py, read/writing memory or registers, encrypted download, or any other
 			features that interact with unsupported Download Mode commands.
 

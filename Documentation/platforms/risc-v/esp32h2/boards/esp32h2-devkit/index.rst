@@ -6,7 +6,7 @@ ESP32-H2-DevKitM-1 is an entry-level development board based on Bluetooth® Low 
 IEEE 802.15.4 combo module ESP32-H2-MINI-1 or ESP32-H2-MINI-1U. You can find the board schematic
 `here <https://espressif-docs.readthedocs-hosted.com/projects/esp-dev-kits/en/latest/_static/esp32-h2-devkitm-1/esp32-h2-devkitm-1_v1.2_schematics_20230306.pdf>`_.
 
-Most of the I/O pins on the ESP32-H2-MINI-1/1U module are broken out to the pin headers on 
+Most of the I/O pins on the ESP32-H2-MINI-1/1U module are broken out to the pin headers on
 both sides of this board for easy interfacing. Developers can either connect peripherals with
 jumper wires or mount ESP32-H2-DevKitM-1 on a breadboard.
 
@@ -207,7 +207,7 @@ usbconsole
 
 This configuration tests the built-in USB-to-serial converter found in ESP32-H2.
 ``esptool`` can be used to check the version of the chip and if this feature is
-supported.  Running ``esptool.py -p <port> chip_id`` should have ``Chip is
+supported.  Running ``esptool -p <port> chip_id`` should have ``Chip is
 ESP32-H2`` in its output.
 When connecting the board a new device should appear, a ``/dev/ttyACMX`` on Linux
 or a ``/dev/cu.usbmodemXXX`` om macOS.

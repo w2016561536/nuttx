@@ -23,7 +23,7 @@ You can use the prebuilt `toolchain <https://docs.espressif.com/projects/esp-idf
 for Xtensa architecture and `OpenOCD <https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/api-guides/tools/idf-tools.html#openocd-esp32>`__
 for ESP32-S3 by Espressif.
 
-For flashing firmware, you will need to install ``esptool.py`` by running::
+For flashing firmware, you will need to install ``esptool`` by running::
 
     $ pip install esptool
 
@@ -55,7 +55,7 @@ Flashing
 ========
 
 Firmware for ESP32-S3 is flashed via the USB/UART or internal USB DEVICE JTAG interface using the
-``esptool.py`` tool.
+``esptool`` tool.
 It's a two step process where the first converts the ELF file into a ESP32-S3 compatible binary
 and the second flashes it to the board.  These steps are included into the build system and you can
 flash your NuttX firmware simply by running::
@@ -79,7 +79,7 @@ Once you downloaded both binaries, you can flash them by adding an ``ESPTOOL_BIN
 
    .. code-block:: console
 
-      $ esptool.py erase_flash
+      $ esptool erase_flash
 
 Peripheral Support
 ==================

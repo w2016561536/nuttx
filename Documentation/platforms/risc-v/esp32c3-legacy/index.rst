@@ -88,16 +88,16 @@ can be: ``../esp-bins``
 Building and flashing
 =====================
 
-First make sure that ``esptool.py`` is installed.  This tool is used to convert
+First make sure that ``esptool`` is installed.  This tool is used to convert
 the ELF to a compatible ESP32 image and to flash the image into the board.
 It can be installed with: ``pip install esptool``.
 
 Configure the NuttX project: ``./tools/configure.sh esp32c3-devkit:nsh``
 Run ``make`` to build the project.  Note that the conversion mentioned above is
 included in the build process.
-The ``esptool.py`` command to flash all the binaries is::
+The ``esptool`` command to flash all the binaries is::
 
-     esptool.py --chip esp32c3 --port /dev/ttyUSBXX --baud 921600 write_flash 0x0 bootloader.bin 0x8000 partition-table.bin 0x10000 nuttx.bin
+     esptool --chip esp32c3 --port /dev/ttyUSBXX --baud 921600 write_flash 0x0 bootloader.bin 0x8000 partition-table.bin 0x10000 nuttx.bin
 
 However, this is also included in the build process and we can build and flash with::
 

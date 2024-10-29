@@ -45,9 +45,9 @@ endif
 
 define POSTBUILD
 	$(Q) echo "MKIMAGE: ESP32-C6 binary"
-	$(Q) if ! esptool.py version 1>/dev/null 2>&1; then \
+	$(Q) if ! esptool version 1>/dev/null 2>&1; then \
 		echo ""; \
-		echo "esptool.py not found.  Please run: \"pip install esptool\""; \
+		echo "esptool not found.  Please run: \"pip install esptool\""; \
 		echo "Or run: \"make -C $(TOPDIR)/tools/esp32c6\" to install all IDF tools."; \
 		echo ""; \
 		echo "Run make again to create the nuttx.bin image."; \
@@ -57,15 +57,15 @@ define POSTBUILD
 		echo "Missing Flash memory size configuration for the ESP32-C6 chip."; \
 		exit 1; \
 	fi
-	esptool.py --chip esp32c6 elf2image --flash_mode dio --flash_size $(FLASH_SIZE) -o nuttx.bin nuttx
+	esptool --chip esp32c6 elf2image --flash_mode dio --flash_size $(FLASH_SIZE) -o nuttx.bin nuttx
 	$(Q) echo "Generated: nuttx.bin (ESP32-C6 compatible)"
 endef
 
-# ESPTOOL_BAUD -- Serial port baud rate used when flashing/reading via esptool.py
+# ESPTOOL_BAUD -- Serial port baud rate used when flashing/reading via esptool
 
 ESPTOOL_BAUD ?= 921600
 
-# DOWNLOAD -- Download binary image via esptool.py
+# DOWNLOAD -- Download binary image via esptool
 
 define DOWNLOAD
 	$(Q) if [ -z $(ESPTOOL_PORT) ]; then \
@@ -73,5 +73,5 @@ define DOWNLOAD
 		echo "USAGE: make download ESPTOOL_PORT=<port> [ ESPTOOL_BAUD=<baud> ]"; \
 		exit 1; \
 	fi
-	esptool.py --chip esp32c6 --port $(ESPTOOL_PORT) --baud $(ESPTOOL_BAUD) write_flash $(FLASH_BL) $(FLASH_PT) 0x10000 $(1).bin
+	esptool --chip esp32c6 --port $(ESPTOOL_PORT) --baud $(ESPTOOL_BAUD) write_flash $(FLASH_BL) $(FLASH_PT) 0x10000 $(1).bin
 endef
