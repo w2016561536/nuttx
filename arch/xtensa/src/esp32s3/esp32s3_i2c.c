@@ -881,7 +881,7 @@ static int i2c_polling_waitdone(struct esp32s3_i2c_priv_s *priv)
    */
 
   current = clock_systime_ticks();
-  timeout = current + SEC2TICK(10);
+  timeout = current + MSEC2TICK(5);
 
   /* Loop while a transfer is in progress
    * and an error didn't occur within the timeout
