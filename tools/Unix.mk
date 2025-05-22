@@ -29,6 +29,10 @@ ifeq ($(V),)
   MAKE := $(MAKE) -s --no-print-directory
 endif
 
+DUMMY  := ${shell $(MAKE) -C tools -f Makefile.host incdir \
+          INCDIR="$(TOPDIR)/tools/incdir.sh"}
+
+
 include $(TOPDIR)/Make.defs
 
 # GIT directory present

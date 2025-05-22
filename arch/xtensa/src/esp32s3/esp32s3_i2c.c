@@ -395,8 +395,8 @@ static void i2c_reset_fifo(struct esp32s3_i2c_priv_s *priv)
 {
   uint32_t bits = I2C_TX_FIFO_RST | I2C_RX_FIFO_RST;
 
-  modifyreg32(I2C_FIFO_CONF_REG(priv->id), 0, bits);
-  modifyreg32(I2C_FIFO_CONF_REG(priv->id), bits, 0);
+  modifyreg32(I2C_FIFO_CONF_REG(priv->id - 1), 0, bits);
+  modifyreg32(I2C_FIFO_CONF_REG(priv->id - 1), bits, 0);
 }
 
 /****************************************************************************
@@ -412,10 +412,10 @@ static void i2c_reset_fifo(struct esp32s3_i2c_priv_s *priv)
 
 static void i2c_intr_enable(struct esp32s3_i2c_priv_s *priv)
 {
-  putreg32(UINT32_MAX, I2C_INT_CLR_REG(priv->id));
+  putreg32(UINT32_MAX, I2C_INT_CLR_REG(priv->id - 1));
 
   putreg32(I2C_TRANS_COMPLETE_INT_ENA | I2C_END_DETECT_INT_ENA |
-           I2C_INT_ERR_MASK, I2C_INT_ENA_REG(priv->id));
+           I2C_INT_ERR_MASK, I2C_INT_ENA_REG(priv->id - 1));
 }
 
 /****************************************************************************
@@ -431,9 +431,9 @@ static void i2c_intr_enable(struct esp32s3_i2c_priv_s *priv)
 
 static void i2c_intr_disable(struct esp32s3_i2c_priv_s *priv)
 {
-  putreg32(0, I2C_INT_ENA_REG(priv->id));
+  putreg32(0, I2C_INT_ENA_REG(priv->id - 1));
 
-  putreg32(UINT32_MAX, I2C_INT_CLR_REG(priv->id));
+  putreg32(UINT32_MAX, I2C_INT_CLR_REG(priv->id - 1));
 }
 
 /****************************************************************************
@@ -453,19 +453,19 @@ static void i2c_sendstart(struct esp32s3_i2c_priv_s *priv)
 
   /* Write I2C command registers */
 
-  putreg32(I2C_BASE_CMD(I2C_CMD_RESTART, 0), I2C_COMD0_REG(priv->id));
-  putreg32(I2C_SEND_CMD(I2C_CMD_WRITE, 1, 1), I2C_COMD1_REG(priv->id));
-  putreg32(I2C_BASE_CMD(I2C_CMD_END, 0), I2C_COMD2_REG(priv->id));
+  putreg32(I2C_BASE_CMD(I2C_CMD_RESTART, 0), I2C_COMD0_REG(priv->id - 1));
+  putreg32(I2C_SEND_CMD(I2C_CMD_WRITE, 1, 1), I2C_COMD1_REG(priv->id - 1));
+  putreg32(I2C_BASE_CMD(I2C_CMD_END, 0), I2C_COMD2_REG(priv->id - 1));
 
   /* Write data to FIFO register */
 
   if ((msg->flags & I2C_M_READ) == 0)
     {
-      putreg32(I2C_WRITEADDR8(msg->addr), I2C_DATA_REG(priv->id));
+      putreg32(I2C_WRITEADDR8(msg->addr), I2C_DATA_REG(priv->id - 1));
     }
   else
     {
-      putreg32(I2C_READADDR8(msg->addr), I2C_DATA_REG(priv->id));
+      putreg32(I2C_READADDR8(msg->addr), I2C_DATA_REG(priv->id - 1));
     }
 
   /* Enable I2C master TX interrupt */
@@ -474,11 +474,11 @@ static void i2c_sendstart(struct esp32s3_i2c_priv_s *priv)
 
   /* Update I2C configuration */
 
-  modifyreg32(I2C_CTR_REG(priv->id), 0, I2C_CONF_UPGATE);
+  modifyreg32(I2C_CTR_REG(priv->id - 1), 0, I2C_CONF_UPGATE);
 
   /* Configure the I2C to trigger a transaction */
 
-  modifyreg32(I2C_CTR_REG(priv->id), 0, I2C_TRANS_START);
+  modifyreg32(I2C_CTR_REG(priv->id - 1), 0, I2C_TRANS_START);
 }
 
 /****************************************************************************
@@ -499,12 +499,12 @@ static void i2c_senddata(struct esp32s3_i2c_priv_s *priv)
 
   n = n < I2C_FIFO_SIZE ? n : I2C_FIFO_SIZE;
 
-  putreg32(I2C_SEND_CMD(I2C_CMD_WRITE, 1, n), I2C_COMD0_REG(priv->id));
-  putreg32(I2C_BASE_CMD(I2C_CMD_END, 0), I2C_COMD1_REG(priv->id));
+  putreg32(I2C_SEND_CMD(I2C_CMD_WRITE, 1, n), I2C_COMD0_REG(priv->id - 1));
+  putreg32(I2C_BASE_CMD(I2C_CMD_END, 0), I2C_COMD1_REG(priv->id - 1));
 
   for (int i = 0; i < n; i++)
     {
-      putreg32(msg->buffer[priv->bytes + i], I2C_DATA_REG(priv->id));
+      putreg32(msg->buffer[priv->bytes + i], I2C_DATA_REG(priv->id - 1));
     }
 
   priv->bytes += n;
@@ -515,11 +515,11 @@ static void i2c_senddata(struct esp32s3_i2c_priv_s *priv)
 
   /* Update I2C configuration */
 
-  modifyreg32(I2C_CTR_REG(priv->id), 0, I2C_CONF_UPGATE);
+  modifyreg32(I2C_CTR_REG(priv->id - 1), 0, I2C_CONF_UPGATE);
 
   /* Configure the I2C to trigger a transaction */
 
-  modifyreg32(I2C_CTR_REG(priv->id), 0, I2C_TRANS_START);
+  modifyreg32(I2C_CTR_REG(priv->id - 1), 0, I2C_TRANS_START);
 }
 
 /****************************************************************************
@@ -536,13 +536,13 @@ static void i2c_senddata(struct esp32s3_i2c_priv_s *priv)
 static void i2c_recvdata(struct esp32s3_i2c_priv_s *priv)
 {
   struct i2c_msg_s *msg = &priv->msgv[priv->msgid];
-  uint32_t cmd = getreg32(I2C_COMD0_REG(priv->id));
+  uint32_t cmd = getreg32(I2C_COMD0_REG(priv->id - 1));
   uint8_t n = cmd & 0xff;
   uint32_t data = 0;
 
   for (int i = 0; i < n; i++)
     {
-      data = getreg32(I2C_DATA_REG(priv->id));
+      data = getreg32(I2C_DATA_REG(priv->id - 1));
       msg->buffer[priv->bytes + i] = data & 0xff;
     }
 
@@ -579,8 +579,8 @@ static void i2c_startrecv(struct esp32s3_i2c_priv_s *priv)
     }
 
   putreg32(I2C_RECV_CMD(I2C_CMD_READ, ack_value, n),
-           I2C_COMD0_REG(priv->id));
-  putreg32(I2C_BASE_CMD(I2C_CMD_END, 0), I2C_COMD1_REG(priv->id));
+           I2C_COMD0_REG(priv->id - 1));
+  putreg32(I2C_BASE_CMD(I2C_CMD_END, 0), I2C_COMD1_REG(priv->id - 1));
 
   /* Enable I2C master RX interrupt */
 
@@ -588,11 +588,11 @@ static void i2c_startrecv(struct esp32s3_i2c_priv_s *priv)
 
   /* Update I2C configuration */
 
-  modifyreg32(I2C_CTR_REG(priv->id), 0, I2C_CONF_UPGATE);
+  modifyreg32(I2C_CTR_REG(priv->id - 1), 0, I2C_CONF_UPGATE);
 
   /* Configure the I2C to trigger a transaction */
 
-  modifyreg32(I2C_CTR_REG(priv->id), 0, I2C_TRANS_START);
+  modifyreg32(I2C_CTR_REG(priv->id - 1), 0, I2C_TRANS_START);
 }
 
 /****************************************************************************
@@ -608,7 +608,7 @@ static void i2c_startrecv(struct esp32s3_i2c_priv_s *priv)
 
 static void i2c_sendstop(struct esp32s3_i2c_priv_s *priv)
 {
-  putreg32(I2C_BASE_CMD(I2C_CMD_STOP, 0), I2C_COMD0_REG(priv->id));
+  putreg32(I2C_BASE_CMD(I2C_CMD_STOP, 0), I2C_COMD0_REG(priv->id - 1));
 
   /* Enable I2C master TX interrupt */
 
@@ -616,11 +616,11 @@ static void i2c_sendstop(struct esp32s3_i2c_priv_s *priv)
 
   /* Update I2C configuration */
 
-  modifyreg32(I2C_CTR_REG(priv->id), 0, I2C_CONF_UPGATE);
+  modifyreg32(I2C_CTR_REG(priv->id - 1), 0, I2C_CONF_UPGATE);
 
   /* Configure the I2C to trigger a transaction */
 
-  modifyreg32(I2C_CTR_REG(priv->id), 0, I2C_TRANS_START);
+  modifyreg32(I2C_CTR_REG(priv->id - 1), 0, I2C_TRANS_START);
 }
 
 /****************************************************************************
@@ -657,7 +657,7 @@ static void i2c_init_clock(struct esp32s3_i2c_priv_s *priv,
   uint32_t sclk_freq = source_clk / clkm_div;
   uint32_t half_cycle = sclk_freq / bus_freq / 2;
 
-  modifyreg32(I2C_CLK_CONF_REG(priv->id), I2C_SCLK_DIV_NUM_M,
+  modifyreg32(I2C_CLK_CONF_REG(priv->id - 1), I2C_SCLK_DIV_NUM_M,
               VALUE_TO_FIELD((clkm_div - 1), I2C_SCLK_DIV_NUM));
 
   /* According to the Technical Reference Manual, the following timings must
@@ -670,7 +670,7 @@ static void i2c_init_clock(struct esp32s3_i2c_priv_s *priv,
    */
 
   scl_low       = half_cycle;
-  putreg32(scl_low - 1, I2C_SCL_LOW_PERIOD_REG(priv->id));
+  putreg32(scl_low - 1, I2C_SCL_LOW_PERIOD_REG(priv->id - 1));
 
   /* By default, scl_wait_high must be less than scl_high.
    * A time compensation is needed for when the bus frequency is higher
@@ -684,23 +684,23 @@ static void i2c_init_clock(struct esp32s3_i2c_priv_s *priv,
   reg_value     = VALUE_TO_FIELD(scl_high, I2C_SCL_HIGH_PERIOD);
   reg_value    |= VALUE_TO_FIELD(scl_wait_high,
                                  I2C_SCL_WAIT_HIGH_PERIOD);
-  putreg32(reg_value, I2C_SCL_HIGH_PERIOD_REG(priv->id));
+  putreg32(reg_value, I2C_SCL_HIGH_PERIOD_REG(priv->id - 1));
 
   sda_hold      = half_cycle / 2;
-  putreg32(sda_hold - 1, I2C_SDA_HOLD_REG(priv->id));
+  putreg32(sda_hold - 1, I2C_SDA_HOLD_REG(priv->id - 1));
 
   /* scl_wait_high < sda_sample <= scl_high */
 
   sda_sample    = half_cycle / 2;
-  putreg32(sda_sample - 1, I2C_SDA_SAMPLE_REG(priv->id));
+  putreg32(sda_sample - 1, I2C_SDA_SAMPLE_REG(priv->id - 1));
 
   setup         = half_cycle;
-  putreg32(setup - 1, I2C_SCL_RSTART_SETUP_REG(priv->id));
-  putreg32(setup - 1, I2C_SCL_STOP_SETUP_REG(priv->id));
+  putreg32(setup - 1, I2C_SCL_RSTART_SETUP_REG(priv->id - 1));
+  putreg32(setup - 1, I2C_SCL_STOP_SETUP_REG(priv->id - 1));
 
   hold          = half_cycle;
-  putreg32(hold - 1, I2C_SCL_START_HOLD_REG(priv->id));
-  putreg32(hold - 1, I2C_SCL_STOP_HOLD_REG(priv->id));
+  putreg32(hold - 1, I2C_SCL_START_HOLD_REG(priv->id - 1));
+  putreg32(hold - 1, I2C_SCL_STOP_HOLD_REG(priv->id - 1));
 
   /* By default, we set the timeout value to about 10 bus cycles
    * log(20*half_cycle)/log(2) = log(half_cycle)/log(2) +  log(20)/log(2)
@@ -712,7 +712,7 @@ static void i2c_init_clock(struct esp32s3_i2c_priv_s *priv,
 
   reg_value  = I2C_TIME_OUT_EN;
   reg_value |= VALUE_TO_FIELD(timeout, I2C_TIME_OUT_VALUE);
-  putreg32(reg_value, I2C_TO_REG(priv->id));
+  putreg32(reg_value, I2C_TO_REG(priv->id - 1));
 
   priv->clk_freq = bus_freq;
 }
@@ -754,15 +754,15 @@ static void i2c_init(struct esp32s3_i2c_priv_s *priv)
   /* Initialize I2C Master */
 
   putreg32(I2C_MS_MODE | I2C_CLK_EN | I2C_SCL_FORCE_OUT | I2C_SDA_FORCE_OUT,
-           I2C_CTR_REG(priv->id));
+           I2C_CTR_REG(priv->id - 1));
 
   /* Set FIFO mode */
 
-  modifyreg32(I2C_FIFO_CONF_REG(priv->id), I2C_NONFIFO_EN, 0);
+  modifyreg32(I2C_FIFO_CONF_REG(priv->id - 1), I2C_NONFIFO_EN, 0);
 
   /* Ensure I2C data mode is set to MSB */
 
-  modifyreg32(I2C_CTR_REG(priv->id), I2C_TX_LSB_FIRST | I2C_RX_LSB_FIRST, 0);
+  modifyreg32(I2C_CTR_REG(priv->id - 1), I2C_TX_LSB_FIRST | I2C_RX_LSB_FIRST, 0);
 
   i2c_reset_fifo(priv);
 
@@ -771,11 +771,11 @@ static void i2c_init(struct esp32s3_i2c_priv_s *priv)
   putreg32(I2C_SCL_FILTER_EN | I2C_SDA_FILTER_EN |
            VALUE_TO_FIELD(I2C_FILTER_CYC_NUM_DEF, I2C_SCL_FILTER_THRES) |
              VALUE_TO_FIELD(I2C_FILTER_CYC_NUM_DEF, I2C_SDA_FILTER_THRES),
-           I2C_FILTER_CFG_REG(priv->id));
+           I2C_FILTER_CFG_REG(priv->id - 1));
 
   /* Set I2C source clock */
 
-  modifyreg32(I2C_CLK_CONF_REG(priv->id), I2C_SCLK_SEL, 0);
+  modifyreg32(I2C_CLK_CONF_REG(priv->id - 1), I2C_SCLK_SEL, 0);
 
   /* Configure I2C bus frequency */
 
@@ -783,7 +783,7 @@ static void i2c_init(struct esp32s3_i2c_priv_s *priv)
 
   /* Update I2C configuration */
 
-  modifyreg32(I2C_CTR_REG(priv->id), 0, I2C_CONF_UPGATE);
+  modifyreg32(I2C_CTR_REG(priv->id - 1), 0, I2C_CONF_UPGATE);
 }
 
 /****************************************************************************
@@ -822,7 +822,7 @@ static void i2c_reset_fsmc(struct esp32s3_i2c_priv_s *priv)
 {
   /* Reset FSM machine */
 
-  modifyreg32(I2C_CTR_REG(priv->id), 0, I2C_FSM_RST);
+  modifyreg32(I2C_CTR_REG(priv->id - 1), 0, I2C_FSM_RST);
 }
 
 /****************************************************************************
@@ -895,7 +895,7 @@ static int i2c_polling_waitdone(struct esp32s3_i2c_priv_s *priv)
        * process the operation.
        */
 
-      status = getreg32(I2C_INT_STATUS_REG(priv->id));
+      status = getreg32(I2C_INT_STATUS_REG(priv->id - 1));
       if (status != 0)
         {
           /* Check if the stop operation ended. Don't use
@@ -908,11 +908,11 @@ static int i2c_polling_waitdone(struct esp32s3_i2c_priv_s *priv)
 
           if ((status & I2C_TRANS_COMPLETE_INT_ST) != 0)
             {
-              putreg32(status, I2C_INT_CLR_REG(priv->id));
+              putreg32(status, I2C_INT_CLR_REG(priv->id - 1));
               break;
             }
 
-          putreg32(status, I2C_INT_CLR_REG(priv->id));
+          putreg32(status, I2C_INT_CLR_REG(priv->id - 1));
           i2c_process(priv, status);
         }
 
@@ -1018,7 +1018,7 @@ static int i2c_transfer(struct i2c_master_s *dev, struct i2c_msg_s *msgs,
       if ((msgs[i].flags & I2C_M_NOSTART) != 0)
         {
           i2c_traceevent(priv, I2CEVENT_SENDBYTE, priv->bytes,
-                         getreg32(I2C_SR_REG(priv->id)));
+                         getreg32(I2C_SR_REG(priv->id - 1)));
           i2c_senddata(priv);
 
           if (priv->bytes == msgs[i].length)
@@ -1042,7 +1042,7 @@ static int i2c_transfer(struct i2c_master_s *dev, struct i2c_msg_s *msgs,
           i2c_tracereset(priv);
 
           i2c_traceevent(priv, I2CEVENT_SENDADDR, msgs[i].addr,
-                         getreg32(I2C_SR_REG(priv->id)));
+                         getreg32(I2C_SR_REG(priv->id - 1)));
 
           i2c_sendstart(priv);
         }
@@ -1123,13 +1123,13 @@ static int i2c_transfer(struct i2c_master_s *dev, struct i2c_msg_s *msgs,
 #ifdef CONFIG_I2C_RESET
 static void i2c_clear_bus(struct esp32s3_i2c_priv_s *priv)
 {
-  modifyreg32(I2C_SCL_SP_CONF_REG(priv->id),
+  modifyreg32(I2C_SCL_SP_CONF_REG(priv->id - 1),
               I2C_SCL_RST_SLV_EN | I2C_SCL_RST_SLV_NUM_M,
               VALUE_TO_FIELD(I2C_SCL_CYC_NUM_DEF, I2C_SCL_RST_SLV_NUM));
 
-  modifyreg32(I2C_SCL_SP_CONF_REG(priv->id), 0, I2C_SCL_RST_SLV_EN);
+  modifyreg32(I2C_SCL_SP_CONF_REG(priv->id - 1), 0, I2C_SCL_RST_SLV_EN);
 
-  modifyreg32(I2C_CTR_REG(priv->id), 0, I2C_CONF_UPGATE);
+  modifyreg32(I2C_CTR_REG(priv->id - 1), 0, I2C_CONF_UPGATE);
 }
 
 /****************************************************************************
@@ -1373,8 +1373,8 @@ static int i2c_irq(int cpuint, void *context, void *arg)
    * triggered.
    */
 
-  uint32_t irq_status = getreg32(I2C_INT_STATUS_REG(priv->id));
-  putreg32(irq_status, I2C_INT_CLR_REG(priv->id));
+  uint32_t irq_status = getreg32(I2C_INT_STATUS_REG(priv->id - 1));
+  putreg32(irq_status, I2C_INT_CLR_REG(priv->id - 1));
 
   i2c_process(priv, irq_status);
 
@@ -1413,7 +1413,7 @@ static void i2c_process(struct esp32s3_i2c_priv_s *priv, uint32_t status)
       priv->error = status & I2C_INT_ERR_MASK;
       priv->i2cstate = I2CSTATE_ERROR;
       i2c_traceevent(priv, I2CEVENT_ERROR, priv->error,
-                     getreg32(I2C_SR_REG(priv->id)));
+                     getreg32(I2C_SR_REG(priv->id - 1)));
       i2c_intr_disable(priv);
 #ifndef CONFIG_I2C_POLLED
       nxsem_post(&priv->sem_isr);
@@ -1434,7 +1434,7 @@ static void i2c_process(struct esp32s3_i2c_priv_s *priv, uint32_t status)
               if (priv->ready_read)
                 {
                   i2c_traceevent(priv, I2CEVENT_RCVBYTE, priv->bytes,
-                                 getreg32(I2C_SR_REG(priv->id)));
+                                 getreg32(I2C_SR_REG(priv->id - 1)));
                   i2c_recvdata(priv);
 
                   priv->ready_read = false;
@@ -1447,7 +1447,7 @@ static void i2c_process(struct esp32s3_i2c_priv_s *priv, uint32_t status)
               if (priv->bytes == msg->length)
                 {
                   i2c_traceevent(priv, I2CEVENT_STOP, msg->length,
-                                 getreg32(I2C_SR_REG(priv->id)));
+                                 getreg32(I2C_SR_REG(priv->id - 1)));
                   i2c_sendstop(priv);
 #ifndef CONFIG_I2C_POLLED
                   priv->i2cstate = I2CSTATE_FINISH;
@@ -1456,7 +1456,7 @@ static void i2c_process(struct esp32s3_i2c_priv_s *priv, uint32_t status)
               else /* Start a receive operation */
                 {
                   i2c_traceevent(priv, I2CEVENT_RCVMODEEN, 0,
-                                 getreg32(I2C_SR_REG(priv->id)));
+                                 getreg32(I2C_SR_REG(priv->id - 1)));
                   i2c_startrecv(priv);
 
                   priv->ready_read = true;
@@ -1465,7 +1465,7 @@ static void i2c_process(struct esp32s3_i2c_priv_s *priv, uint32_t status)
           else /* Write operation */
             {
               i2c_traceevent(priv, I2CEVENT_SENDBYTE, priv->bytes,
-                             getreg32(I2C_SR_REG(priv->id)));
+                             getreg32(I2C_SR_REG(priv->id - 1)));
               i2c_senddata(priv);
 
               /* Finally sent the entire message. Update the I2C state to
@@ -1494,7 +1494,7 @@ static void i2c_process(struct esp32s3_i2c_priv_s *priv, uint32_t status)
            */
 
           i2c_traceevent(priv, I2CEVENT_STOP, msg->length,
-                         getreg32(I2C_SR_REG(priv->id)));
+                         getreg32(I2C_SR_REG(priv->id - 1)));
           i2c_sendstop(priv);
 #ifndef CONFIG_I2C_POLLED
           priv->i2cstate = I2CSTATE_FINISH;

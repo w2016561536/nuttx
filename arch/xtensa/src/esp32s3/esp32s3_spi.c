@@ -624,6 +624,7 @@ static void esp32s3_spi_select(struct spi_dev_s *dev,
 static uint32_t esp32s3_spi_setfrequency(struct spi_dev_s *dev,
                                          uint32_t frequency)
 {
+  frequency = 20000000;
   uint32_t reg_val;
   struct esp32s3_spi_priv_s *priv = (struct esp32s3_spi_priv_s *)dev;
   const uint32_t duty_cycle = 128;

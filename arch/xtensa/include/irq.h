@@ -96,7 +96,29 @@
 #define REG_EXCVADDR        (20)
 #define REG_THREADPTR       (21)
 
-#define _REG_EXTRA_START    (22)
+// #define _REG_EXTRA_START    (22)
+#define REG_FCR             (22)
+#define REG_FSR             (23)
+#define REG_F0              (24)
+#define REG_F1              (25)
+#define REG_F2              (26)
+#define REG_F3              (27)
+#define REG_F4              (28)
+#define REG_F5              (29)
+#define REG_F6              (30)
+#define REG_F7              (31)
+#define REG_F8              (32)
+#define REG_F9              (33)
+#define REG_F10             (34)
+#define REG_F11             (35)
+#define REG_F12             (36)
+#define REG_F13             (37)
+#define REG_F14             (38)
+#define REG_F15             (39)
+
+#define REG_BR              (40)
+
+#define _REG_EXTRA_START    (41)
 
 #if XCHAL_HAVE_S32C1I != 0
 #  define REG_SCOMPARE1       (_REG_EXTRA_START + 0)

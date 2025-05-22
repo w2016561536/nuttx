@@ -128,6 +128,7 @@
 #define   FSNODEFLAG_TYPE_SOCKET     0x00000009 /*   Socket                 */
 #define   FSNODEFLAG_TYPE_PIPE       0x0000000a /*   Pipe                   */
 #define   FSNODEFLAG_TYPE_NAMEDEVENT 0x0000000b /*   Named event group      */
+#define FSNODEFLAG_DELETED          0x00000010 /* Unlinked     */
 
 #define INODE_IS_TYPE(i,t) \
   (((i)->i_flags & FSNODEFLAG_TYPE_MASK) == (t))
