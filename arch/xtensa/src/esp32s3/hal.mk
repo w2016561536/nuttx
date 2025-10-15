@@ -18,6 +18,9 @@
 #
 ############################################################################
 
+CFLAGS += -D__NuttX__
+CHIP_SERIES=esp32s3
+
 # Include header paths
 
 INCLUDES += $(INCDIR_PREFIX)$(ARCH_SRCDIR)$(DELIM)chip$(DELIM)$(ESP_HAL_3RDPARTY_REPO)$(DELIM)nuttx$(DELIM)$(CHIP_SERIES)$(DELIM)include

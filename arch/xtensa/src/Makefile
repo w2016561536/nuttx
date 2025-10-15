@@ -146,7 +146,7 @@ $(COBJS) $(UCOBJS) $(HEAD_COBJ): %$(OBJEXT): %.c
 	$(call COMPILE, $<, $@)
 
 $(STARTUP_ELF_OBJS): %$(OBJEXT): %.c
-	$(Q) $(CC) $(CELFFLAGS) -c common$(DELIM)crt0.c -o crt0$(OBJEXT)
+	$(Q) $(CC) $(CELFFLAGS) -I$(TOPDIR)/include -c common$(DELIM)crt0.c -o crt0$(OBJEXT)
 
 ifeq ($(CONFIG_BUILD_FLAT),y)
 $(BIN): $(STARTUP_ELF_OBJS) $(OBJS)
