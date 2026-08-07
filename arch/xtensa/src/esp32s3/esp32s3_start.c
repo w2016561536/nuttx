@@ -485,6 +485,11 @@ noinstrument_function void IRAM_ATTR __start(void)
   uint32_t app_drom_size  = (uint32_t)_image_drom_size;
   uint32_t app_drom_vaddr = (uint32_t)_image_drom_vma;
 
+  ets_printf("tryint to run bootloader init\n");
+  ets_printf("tryint to run bootloader init\n");
+  ets_printf("tryint to run bootloader init\n");
+  ets_printf("tryint to run bootloader init\n");
+  ets_printf("tryint to run bootloader init\n");
 #ifdef CONFIG_ESPRESSIF_SIMPLE_BOOT
   if (bootloader_init() != 0)
     {
@@ -492,6 +497,12 @@ noinstrument_function void IRAM_ATTR __start(void)
       while (true);
     }
 #endif
+
+  ets_printf("tryint to run map_rom_segments\n");
+  ets_printf("tryint to run map_rom_segments\n");
+  ets_printf("tryint to run map_rom_segments\n");
+  ets_printf("tryint to run map_rom_segments\n");
+  ets_printf("tryint to run map_rom_segments\n");
 
   if (map_rom_segments(app_drom_start, app_drom_vaddr, app_drom_size,
                        app_irom_start, app_irom_vaddr, app_irom_size) != 0)
