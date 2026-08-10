@@ -503,17 +503,7 @@ static void setup_channel(struct esp32_ledc_s *priv, int cn)
   uint32_t regval;
   struct esp32_ledc_chan_s *chan = &priv->chans[cn];
 
-  /* Duty cycle:
-   *
-   * duty cycle = duty / 65536 * reload (fractional value)
-   */
-
   regval = b16toi(chan->duty * priv->reload + b16HALF);
-
-  pwminfo("channel=%" PRIu8 " duty=%" PRIu16 "(%0.4f) regval=%" PRIu32
-          " reload=%" PRIu32 "\n",
-          chan->num, chan->duty, (float)chan->duty / UINT16_MAX,
-          regval, priv->reload);
 
   flags = enter_critical_section();
 
@@ -522,25 +512,34 @@ static void setup_channel(struct esp32_ledc_s *priv, int cn)
   SET_CHAN_REG(chan, LEDC_LSCH0_CONF0_REG, 0);
   SET_CHAN_REG(chan, LEDC_LSCH0_CONF1_REG, 0);
 
+  /* Select timer for this channel */
+
+  SET_CHAN_BITS(chan, LEDC_LSCH0_CONF0_REG,
+                ((uint32_t)priv->num << LEDC_TIMER_SEL_LSCH0_S) &
+                LEDC_TIMER_SEL_LSCH0_M);
+
   /* Set pulse phase 0 */
 
   SET_CHAN_REG(chan, LEDC_LSCH0_HPOINT_REG, 0);
 
-  /* Duty register uses bits [18:4]  */
+  /* Set duty */
 
   SET_CHAN_REG(chan, LEDC_LSCH0_DUTY_REG, regval << 4);
 
-  /* Start GPIO output  */
+  /* Start GPIO output */
 
-  SET_CHAN_BITS(chan, LEDC_LSCH0_CONF0_REG, LEDC_SIG_OUT_EN_LSCH0);
+  SET_CHAN_BITS(chan, LEDC_LSCH0_CONF0_REG,
+                LEDC_SIG_OUT_EN_LSCH0);
 
-  /* Start Duty counter  */
+  /* Start Duty counter */
 
-  SET_CHAN_BITS(chan, LEDC_LSCH0_CONF1_REG, LEDC_DUTY_START_LSCH0);
+  SET_CHAN_BITS(chan, LEDC_LSCH0_CONF1_REG,
+                LEDC_DUTY_START_LSCH0);
 
-  /* Update duty and phase to hardware */
+  /* Update duty and phase */
 
-  SET_CHAN_BITS(chan, LEDC_LSCH0_CONF0_REG, LEDC_PARA_UP_LSCH0);
+  SET_CHAN_BITS(chan, LEDC_LSCH0_CONF0_REG,
+                LEDC_PARA_UP_LSCH0);
 
   leave_critical_section(flags);
 }
