@@ -35,6 +35,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <assert.h>
+#include <string.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/irq.h>
@@ -109,6 +110,15 @@
 /* SPI Maximum buffer size in bytes */
 
 #define SPI_MAX_BUF_SIZE (64)
+
+/* DMA bounce buffer size.
+ *
+ * Keep each DMA transaction within one ESP32 DMA descriptor.  Using an
+ * internal, word-aligned bounce buffer makes the DMA path independent of
+ * the caller buffer location/alignment (stack, PSRAM, flash/DROM, etc.).
+ */
+
+#define SPI_DMA_BOUNCE_SIZE ESP32_DMA_DATALEN_MAX
 
 /****************************************************************************
  * Private Types
@@ -384,6 +394,18 @@ static struct esp32_spi_priv_s esp32_spi3_priv =
 struct esp32_dmadesc_s s_dma_rxdesc[SPI_DMA_CHANNEL_MAX][SPI_DMADESC_NUM];
 struct esp32_dmadesc_s s_dma_txdesc[SPI_DMA_CHANNEL_MAX][SPI_DMADESC_NUM];
 
+/* Internal DMA-safe bounce buffers, one pair per DMA channel.
+ *
+ * RX-only transfers must still transmit dummy bytes to generate SCLK.
+ * Never alias the RX destination as the TX source: TX DMA and RX DMA may
+ * run concurrently.
+ */
+
+static uint8_t s_dma_txbuf[SPI_DMA_CHANNEL_MAX][SPI_DMA_BOUNCE_SIZE]
+  __attribute__((aligned(4)));
+static uint8_t s_dma_rxbuf[SPI_DMA_CHANNEL_MAX][SPI_DMA_BOUNCE_SIZE]
+  __attribute__((aligned(4)));
+
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
@@ -592,7 +614,7 @@ static uint32_t esp32_spi_setfrequency(struct spi_dev_s *dev,
   struct esp32_spi_priv_s *priv = (struct esp32_spi_priv_s *)dev;
   const uint32_t duty_cycle = 128;
 
-  frequency = 10000000;
+  frequency = 5000000;
 
   if (priv->frequency == frequency)
     {
@@ -825,18 +847,23 @@ static void esp32_spi_dma_exchange(struct esp32_spi_priv_s *priv,
                                    void *rxbuffer,
                                    uint32_t nwords)
 {
-  const uint32_t total = nwords * (priv->nbits / 8);
+  /* NuttX SPI packs words <= 8 bits in uint8_t and words > 8 bits in
+   * uint16_t.  Do not use nbits / 8 here because that becomes zero for
+   * word sizes smaller than 8 bits.
+   */
+
+  const uint32_t bytes_per_word = priv->nbits <= 8 ? 1 : 2;
+  const uint32_t total = nwords * bytes_per_word;
+  const uint8_t *tp = (const uint8_t *)txbuffer;
+  uint8_t *rp = (uint8_t *)rxbuffer;
   uint32_t bytes = total;
-  uint8_t *tp;
-  uint8_t *rp;
   uint32_t n;
   uint32_t regval;
+  int ret;
   struct esp32_dmadesc_s *dma_tx_desc;
   struct esp32_dmadesc_s *dma_rx_desc;
-#ifdef CONFIG_ESP32_SPIRAM
-  uint8_t *alloctp = NULL;
-  uint8_t *allocrp = NULL;
-#endif
+  uint8_t *dma_txbuf;
+  uint8_t *dma_rxbuf;
 
   /* Define these constants outside transfer loop to avoid wasting CPU time
    * with register offset calculation.
@@ -855,59 +882,59 @@ static void esp32_spi_dma_exchange(struct esp32_spi_priv_s *priv,
   const uintptr_t spi_dma_rstatus = SPI_DMA_RSTATUS_REG(id);
 
   DEBUGASSERT((txbuffer != NULL) || (rxbuffer != NULL));
+  DEBUGASSERT(dma_desc_idx < SPI_DMA_CHANNEL_MAX);
+  DEBUGASSERT(SPI_DMADESC_NUM > 0);
+  DEBUGASSERT(priv->nbits > 0 && priv->nbits <= 16);
 
-  /* If the buffer comes from PSRAM, allocate a new one from DRAM */
-
-#ifdef CONFIG_ESP32_SPIRAM
-  if (esp32_ptr_extram(txbuffer))
+  if (bytes == 0)
     {
-#  ifdef CONFIG_MM_KERNEL_HEAP
-      alloctp = kmm_malloc(total);
-#  elif defined(CONFIG_XTENSA_IMEM_USE_SEPARATE_HEAP)
-      alloctp = xtensa_imm_malloc(total);
-#  endif
-
-      DEBUGASSERT(alloctp != NULL);
-      memcpy(alloctp, txbuffer, total);
-      tp = alloctp;
-    }
-  else
-#endif
-    {
-      tp = (uint8_t *)txbuffer;
-    }
-
-#ifdef CONFIG_ESP32_SPIRAM
-  if (esp32_ptr_extram(rxbuffer))
-    {
-#  ifdef CONFIG_MM_KERNEL_HEAP
-      allocrp = kmm_malloc(total);
-#  elif defined(CONFIG_XTENSA_IMEM_USE_SEPARATE_HEAP)
-      allocrp = xtensa_imm_malloc(total);
-#  endif
-
-      DEBUGASSERT(allocrp != NULL);
-      rp = allocrp;
-    }
-  else
-#endif
-    {
-      rp = (uint8_t *)rxbuffer;
-    }
-
-  if (tp == NULL)
-    {
-      tp = rp;
+      return;
     }
 
   dma_tx_desc = s_dma_txdesc[dma_desc_idx];
   dma_rx_desc = s_dma_rxdesc[dma_desc_idx];
+  dma_txbuf = s_dma_txbuf[dma_desc_idx];
+  dma_rxbuf = s_dma_rxbuf[dma_desc_idx];
+
+  /* Drain a stale completion token, for example after an earlier timeout
+   * followed by a late interrupt.  A fresh DMA transaction must wait for
+   * its own TRANS_DONE interrupt.
+   */
+
+  while (nxsem_trywait(&priv->sem_isr) == OK)
+    {
+    }
 
   esp32_spi_reset_regbits(spi_slave_reg, SPI_TRANS_DONE_M);
   esp32_spi_set_regbits(spi_slave_reg, SPI_INT_EN_M);
 
   while (bytes != 0)
     {
+      /* One descriptor per iteration deliberately limits the DMA-visible
+       * buffer to an internal, 32-bit aligned area.  This also makes odd
+       * transfer sizes safe.  TX uses the generic helper; RX uses a
+       * dedicated helper that rounds both descriptor DATALEN and BUFLEN to
+       * a 32-bit boundary while the SPI MISO_DLEN remains exactly n bytes.
+       */
+
+      n = MIN(bytes, (uint32_t)SPI_DMA_BOUNCE_SIZE);
+
+      if (tp != NULL)
+        {
+          memcpy(dma_txbuf, tp, n);
+        }
+      else
+        {
+          /* SPI receive requires clock generation.  Polling mode sends
+           * UINT32_MAX when txbuffer == NULL, so DMA mode must generate the
+           * same 0xff dummy pattern instead of using rxbuffer as TX data.
+           */
+
+          memset(dma_txbuf, 0xff, n);
+        }
+
+      /* Stop/clear old links before resetting the DMA engine. */
+
       putreg32(0, spi_dma_in_link_reg);
       putreg32(0, spi_dma_out_link_reg);
 
@@ -917,27 +944,56 @@ static void esp32_spi_dma_exchange(struct esp32_spi_priv_s *priv,
       esp32_spi_set_regbits(spi_dma_conf_reg, SPI_DMA_RESET_MASK);
       esp32_spi_reset_regbits(spi_dma_conf_reg, SPI_DMA_RESET_MASK);
 
-      n = esp32_dma_init(dma_tx_desc, SPI_DMADESC_NUM, tp, bytes);
+      /* Clear transaction-done status for this chunk before arming links. */
+
+      esp32_spi_reset_regbits(spi_slave_reg, SPI_TRANS_DONE_M);
+
+      /* TX DMA is always enabled, including RX-only transactions, because
+       * the master must transmit dummy bytes to generate SCLK.
+       */
+
+      ret = esp32_dma_init(dma_tx_desc, 1, dma_txbuf, n);
+      DEBUGASSERT(ret == n);
 
       regval  = VALUE_MASK((uintptr_t)dma_tx_desc, SPI_OUTLINK_ADDR);
       regval |= SPI_OUTLINK_START_M;
       putreg32(regval, spi_dma_out_link_reg);
-      putreg32((n * 8 - 1), spi_mosi_dlen_reg);
+
+      putreg32((n * 8) - 1, spi_mosi_dlen_reg);
       esp32_spi_set_regbits(spi_user_reg, SPI_USR_MOSI_M);
 
-      tp += n;
+      /* Arm RX DMA only when the caller requested received data. */
 
       if (rp != NULL)
         {
-          esp32_dma_init(dma_rx_desc, SPI_DMADESC_NUM, rp, bytes);
+          /* Clear the target bounce buffer so stale data cannot be mistaken
+           * for a successful receive while debugging.  Only n bytes are
+           * copied back after a successful completion interrupt.
+           */
+
+          const uint32_t rx_dma_len = (n + 3u) & ~3u;
+
+          DEBUGASSERT(rx_dma_len <= SPI_DMA_BOUNCE_SIZE);
+          memset(dma_rxbuf, 0, rx_dma_len);
+
+          /* NuttX 12.10 keeps the DMA descriptor control-bit definitions
+           * private to esp32_dma.c, so do not construct descriptor ctrl here.
+           *
+           * For ESP32 RX DMA, descriptor length/size must be word aligned.
+           * Reuse the native esp32_dma_init() helper, but pass the rounded
+           * DMA-visible length.  SPI_MISO_DLEN below still uses the real
+           * transfer length n, so no extra SPI clocks are generated.
+           */
+
+          ret = esp32_dma_init(dma_rx_desc, 1, dma_rxbuf, rx_dma_len);
+          DEBUGASSERT(ret == rx_dma_len);
 
           regval  = VALUE_MASK((uintptr_t)dma_rx_desc, SPI_INLINK_ADDR);
           regval |= SPI_INLINK_START_M;
           putreg32(regval, spi_dma_in_link_reg);
-          putreg32((n * 8 - 1), spi_miso_dlen_reg);
-          esp32_spi_set_regbits(spi_user_reg, SPI_USR_MISO_M);
 
-          rp += n;
+          putreg32((n * 8) - 1, spi_miso_dlen_reg);
+          esp32_spi_set_regbits(spi_user_reg, SPI_USR_MISO_M);
         }
       else
         {
@@ -946,45 +1002,48 @@ static void esp32_spi_dma_exchange(struct esp32_spi_priv_s *priv,
 
       if (priv->config->flags & ESP32_SPI_IO_W)
         {
-          /* Wait until SPI TX FIFO is not empty */
+          /* Wait until TX DMA has supplied data to the SPI FIFO before the
+           * user transaction is started.  This follows the original NuttX
+           * classic ESP32 driver sequence.
+           */
 
           while ((getreg32(spi_dma_rstatus) & SPI_DMA_TX_FIFO_EMPTY) != 0)
             {
-              ;
             }
         }
 
+      /* Trigger the SPI user transaction and wait for TRANS_DONE ISR. */
+
       esp32_spi_set_regbits(spi_cmd_reg, SPI_USR_M);
 
-      esp32_spi_sem_waitdone(priv);
+      ret = esp32_spi_sem_waitdone(priv);
+      if (ret < 0)
+        {
+          spierr("ERROR: SPI%d DMA transfer timeout/error: %d, bytes=%" PRIu32
+                 " chunk=%" PRIu32 "\n",
+                 id, ret, bytes, n);
+          break;
+        }
+
+      if (rp != NULL)
+        {
+          memcpy(rp, dma_rxbuf, n);
+          rp += n;
+        }
+
+      if (tp != NULL)
+        {
+          tp += n;
+        }
 
       bytes -= n;
     }
 
+  /* Disable the peripheral completion interrupt and stop DMA links. */
+
   esp32_spi_reset_regbits(spi_slave_reg, SPI_INT_EN_M);
-
-#ifdef CONFIG_ESP32_SPIRAM
-  if (allocrp)
-    {
-      memcpy(rxbuffer, allocrp, total);
-#  ifdef CONFIG_MM_KERNEL_HEAP
-      kmm_free(allocrp);
-#  elif defined(CONFIG_XTENSA_IMEM_USE_SEPARATE_HEAP)
-      xtensa_imm_free(allocrp);
-#  endif
-    }
-#endif
-
-#ifdef CONFIG_ESP32_SPIRAM
-  if (alloctp)
-    {
-#  ifdef CONFIG_MM_KERNEL_HEAP
-      kmm_free(alloctp);
-#  elif defined(CONFIG_XTENSA_IMEM_USE_SEPARATE_HEAP)
-      xtensa_imm_free(alloctp);
-#  endif
-    }
-#endif
+  putreg32(0, spi_dma_in_link_reg);
+  putreg32(0, spi_dma_out_link_reg);
 }
 
 /****************************************************************************
